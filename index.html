@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Pomodorer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        button {
+            background: #666;
+            border: none;
+            padding: .5em .8em;
+            cursor: pointer;
+            font-family: arial;
+            color: #eee;
+        }
+        .controls {
+            margin-top: .5em;
+            margin-bottom: .5em;
+            text-align: center;
+        }
+        .timer {
+            width: 180px;
+            margin-left: auto;
+            margin-right: auto;
+            padding: .5em;
+        }
+        .timer-time {
+            text-align: center;
+            font-size: 3em;
+            font-family: monospace;
+        }
+        .timer-controls-pause { display: none; }
+        .playing .timer-controls-start { display: none; }
+        .playing .timer-controls-pause { display: initial; }
+    </style>
+</head>
+<body>
+    <div class="main">
+        <div class="timer">
+            <audio class="timer-audio"></audio>
+            <div class="timer-time">25:00</div>
+            <div class="timer-controls controls">
+                <button class="timer-controls-start">Start</button>
+                <button class="timer-controls-pause">Pause</button>
+                <button class="timer-controls-reset">Reset</button>
+            </div>
+        </div>
+        <div class="special-controls controls">
+            <button class="controls-pomodoro">Pomodoro</button>
+            <button class="controls-break">Break</button>
+        </div>
+    </div>
+
+    <script>
+        var audio = document.querySelector('.timer-audio')
+        var timer = Timer()
+
+        var POMODORO_MS = 25 * 60 * 1000
+        var BREAK_MS = 5 * 60 * 1000
+
+        var timerContainer = document.querySelector('.timer')
+        var timerTimeDiv = document.querySelector('.timer-time')
+        var timerStartBtn = document.querySelector('.timer-controls-start')
+        var timerPauseBtn = document.querySelector('.timer-controls-pause')
+        var timerResetBtn = document.querySelector('.timer-controls-reset')
+        var pomodoroBtn = document.querySelector('.controls-pomodoro')
+        var breakBtn = document.querySelector('.controls-break')
+
+        timerStartBtn.onclick = function() { timer.start() }
+        timerPauseBtn.onclick = function() { timer.pause() }
+        timerResetBtn.onclick = function() { timer.reset() }
+        pomodoroBtn.onclick = function() { timer.totalMs(POMODORO_MS).start() }
+        breakBtn.onclick = function() { timer.totalMs(BREAK_MS).start() }
+        
+        timer.onstart = function() { timerContainer.classList.add('playing') }
+        timer.onpause = function() { timerContainer.classList.remove('playing') }
+        timer.onupdate = function(formattedTime) { document.title = formattedTime + ' Pomodorer'; timerTimeDiv.innerHTML = formattedTime }
+        timer.oncomplete = function() { audio.src = 'ding.wav'; audio.play(); notify('Timer ended') }
+        timer.totalMs(POMODORO_MS)
+
+        askNotificationPermission()
+
+
+        function formatMs(ms) {
+            var totalSec = Math.ceil(ms / 1000)
+            var s = ('0' + (totalSec % 60)).substr(-2)
+            var m = ('0' + (Math.floor(totalSec / 60))).substr(-2)
+            return [m, s].join(':')
+        }
+
+        function Timer () {
+            var me = {}
+            var interval
+            var totalMs = 1000
+            var leftMs = 0
+            var lastDate
+            var lastFormatted
+
+            
+            function loop() {
+                var now = Date.now()
+                var elapsedMs = Date.now() - lastDate
+                lastDate = now
+
+                if (leftMs <= 0)
+                    return
+                
+                leftMs = Math.max(leftMs - elapsedMs, 0)
+                update()
+                if (leftMs === 0) {
+                    me.oncomplete()
+                    me.pause()
+                }
+            }
+
+            function update() {
+                var formatted = formatMs(leftMs)
+                if (formatted !== lastFormatted) {
+                    lastFormatted = formatted
+                    me.onupdate(formatted)
+                }
+            }
+
+            me.start = function() {
+                if (interval)
+                    return me
+                if (!leftMs)
+                    leftMs = totalMs
+                lastDate = Date.now()
+                interval = setInterval(loop, 100)
+                me.onstart()
+                return me
+            }
+
+            me.pause = function() {
+                if (!interval)
+                    return me
+                clearInterval(interval)
+                interval = 0
+                me.onpause()
+                return me
+            }
+
+            me.reset = function() {
+                leftMs = totalMs
+                update()
+                return me
+            }
+
+            me.totalMs = function(ms) {
+                if (!ms)
+                    return totalMs
+                totalMs = ms
+                me.reset()
+                return me
+            }
+
+            return me
+        }
+
+        function askNotificationPermission() {
+            if (!('Notification' in window))
+                return
+            if (Notification.permission === 'granted')
+                return
+            /*if (Notification.permission === 'denied')
+                return*/
+            Notification.requestPermission()
+        }
+
+        function notify(text) {
+            if (!('Notification' in window))
+                return
+            var n = new Notification(text)
+            setTimeout(function () { n.close() }, 2000)
+        }
+    </script>
+</body>
+</html>
