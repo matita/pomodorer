@@ -7,6 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" type="image/png" href="timer.png"/>
     <style>
+        body { text-align: center; color: #555; }
         button {
             background: #666;
             border: none;
@@ -18,7 +19,6 @@
         }
         .controls {
             margin-top: 5px;
-            text-align: center;
         }
         .timer {
             width: 180px;
@@ -26,7 +26,6 @@
             margin-right: auto;
         }
         .timer-time {
-            text-align: center;
             font-size: 5em;
             font-family: monospace;
             color: #333;
@@ -34,6 +33,8 @@
         .timer-controls-pause { display: none; }
         .playing .timer-controls-start { display: none; }
         .playing .timer-controls-pause { display: initial; }
+        .task { text-align: center; margin-top: 2em; }
+        .task-name-set { padding: .8em 1.2em; border: 1px solid #ddd; }
     </style>
 </head>
 <body>
@@ -51,9 +52,30 @@
             <button class="controls-pomodoro">Pomodoro</button>
             <button class="controls-break">Break</button>
         </div>
+        <div class="controls">
+            <a class="bookmarklet" href="javascript:void(0)">Pomodorer</a>
+        </div>
+        <div class="task">
+            <span class="task-name"></span>
+        </div>
     </div>
 
+    <script id="bookmarklet-script" type="text/bookmarklet">
+        javascript:(function() {
+            var title;
+            var gitlabSidebar = document.querySelector('.issue-boards-sidebar .issuable-header-text');
+            if (gitlabSidebar) {
+                title = gitlabSidebar.querySelector('span').innerText.trim() + ' ' + gitlabSidebar.querySelector('strong').innerText.trim();
+            }
+
+            var w = window.open('{{URL}}?v=0.1' + (title ? '&title=' + encodeURIComponent(title) : ''));
+        })()
+    </script>
     <script>
+        var url = [location.protocol, '//', location.host, location.pathname].join('')
+        var bookmarkletScript = document.getElementById('bookmarklet-script').innerHTML
+        document.querySelector('.bookmarklet').setAttribute('href', bookmarkletScript.replace('{{URL}}', url))
+
         var audio = document.querySelector('.timer-audio')
         var timer = Timer()
         var currentPhase
@@ -68,6 +90,7 @@
         var timerResetBtn = document.querySelector('.timer-controls-reset')
         var pomodoroBtn = document.querySelector('.controls-pomodoro')
         var breakBtn = document.querySelector('.controls-break')
+        var taskNameSpan = document.querySelector('.task-name')
 
         timerStartBtn.onclick = function() { timer.start() }
         timerPauseBtn.onclick = function() { timer.pause() }
@@ -82,7 +105,28 @@
 
         setPhase('Pomodoro', 25)
         askNotificationPermission()
+        var params = getParams(location.search.substr(1))
+        setTaskTitle(params.title)
 
+
+        function setTaskTitle(title) {
+            if (title) {
+                taskNameSpan.classList.add('task-name-set')
+                taskNameSpan.innerHTML = params.title
+            } else {
+                taskNameSpan.classList.remove('task-name-set')
+                taskNameSpan.innerHTML = ''
+            }
+        }
+
+        function getParams(uriEncoded) {
+            return uriEncoded.split('&')
+                .reduce(function (p, ex) {
+                    var e = ex.split('=')
+                    p[decodeURIComponent(e[0])] = decodeURIComponent(e[1])
+                    return p
+                }, {})
+        }
         
         function refreshTitle() {
             document.title = [
