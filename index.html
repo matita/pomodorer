@@ -73,7 +73,7 @@
         timerPauseBtn.onclick = function() { timer.pause() }
         timerResetBtn.onclick = function() { timer.reset() }
         pomodoroBtn.onclick = function() { setPhase('Pomodoro', 25); timer.start() }
-        breakBtn.onclick = function() { setPhase('Break', 0.1); timer.start() }
+        breakBtn.onclick = function() { setPhase('Break', 5); timer.start() }
         
         timer.onstart = function() { refreshTitle(); timerContainer.classList.add('playing') }
         timer.onpause = function() { refreshTitle(); timerContainer.classList.remove('playing') }
