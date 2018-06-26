@@ -35,6 +35,8 @@
         .playing .timer-controls-pause { display: initial; }
         .task { text-align: center; margin-top: 2em; }
         .task-name-set { padding: .8em 1.2em; border: 1px solid #ddd; }
+        .bookmarklet { cursor: move; cursor: grab; cursor: -moz-grab; cursor: -webkit-grab; }
+        .bookmarklet:active { cursor: grabbing; cursor: -moz-grabbing; cursor: -webkit-grabbing; }
     </style>
 </head>
 <body>
@@ -53,7 +55,7 @@
             <button class="controls-break">Break</button>
         </div>
         <div class="controls">
-            <a class="bookmarklet" href="javascript:void(0)">Pomodorer</a>
+            <a class="bookmarklet" href="javascript:void(0)" title="Drag me to the bookmarks bar">Pomodorer</a>
         </div>
         <div class="task">
             <span class="task-name"></span>
@@ -74,7 +76,9 @@
     <script>
         var url = [location.protocol, '//', location.host, location.pathname].join('')
         var bookmarkletScript = document.getElementById('bookmarklet-script').innerHTML
-        document.querySelector('.bookmarklet').setAttribute('href', bookmarkletScript.replace('{{URL}}', url))
+        var bookmarklet = document.querySelector('.bookmarklet')
+        bookmarklet.setAttribute('href', bookmarkletScript.replace('{{URL}}', url))
+        bookmarklet.onclick = function (e) { if (e) e.preventDefault(); return false; }
 
         var audio = document.querySelector('.timer-audio')
         var timer = Timer()
