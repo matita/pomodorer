@@ -5,6 +5,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <title>Pomodorer</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="timer.png"/>
     <style>
         button {
             background: #666;
@@ -55,6 +56,7 @@
     <script>
         var audio = document.querySelector('.timer-audio')
         var timer = Timer()
+        var currentPhase
 
         var POMODORO_MS = 25 * 60 * 1000
         var BREAK_MS = 5 * 60 * 1000
@@ -70,17 +72,29 @@
         timerStartBtn.onclick = function() { timer.start() }
         timerPauseBtn.onclick = function() { timer.pause() }
         timerResetBtn.onclick = function() { timer.reset() }
-        pomodoroBtn.onclick = function() { timer.totalMs(POMODORO_MS).start() }
-        breakBtn.onclick = function() { timer.totalMs(BREAK_MS).start() }
+        pomodoroBtn.onclick = function() { setPhase('Pomodoro', 25); timer.start() }
+        breakBtn.onclick = function() { setPhase('Break', 0.1); timer.start() }
         
-        timer.onstart = function() { timerContainer.classList.add('playing') }
-        timer.onpause = function() { timerContainer.classList.remove('playing') }
-        timer.onupdate = function(formattedTime) { document.title = formattedTime + ' Pomodorer'; timerTimeDiv.innerHTML = formattedTime }
-        timer.oncomplete = function() { audio.src = 'ding.wav'; audio.play(); notify('Timer ended') }
-        timer.totalMs(POMODORO_MS)
+        timer.onstart = function() { refreshTitle(); timerContainer.classList.add('playing') }
+        timer.onpause = function() { refreshTitle(); timerContainer.classList.remove('playing') }
+        timer.onupdate = function(formattedTime) { refreshTitle(); timerTimeDiv.innerHTML = formattedTime }
+        timer.oncomplete = function() { audio.src = 'ding.wav'; audio.play(); notify(currentPhase + ' ended') }
 
+        setPhase('Pomodoro', 25)
         askNotificationPermission()
 
+        
+        function refreshTitle() {
+            document.title = [
+                timer.isRunning() ? timer.formattedTime() + ' | ' : '',
+                'Pomodorer'
+            ].join('')
+        }
+
+        function setPhase(phase, minutes) {
+            currentPhase = phase
+            timer.totalMs(minutes * 60 * 1000)
+        }
 
         function formatMs(ms) {
             var totalSec = Math.ceil(ms / 1000)
@@ -156,6 +170,9 @@
                 return me
             }
 
+            me.isRunning = function() { return !!interval }
+            me.formattedTime = function() { return lastFormatted }
+
             return me
         }
 
@@ -172,8 +189,8 @@
         function notify(text) {
             if (!('Notification' in window))
                 return
-            var n = new Notification(text)
-            setTimeout(function () { n.close() }, 2000)
+            var n = new Notification(text, { icon: 'timer.png' })
+            n.onclick = function() { window.focus(); n.close() }
         }
     </script>
 </body>
