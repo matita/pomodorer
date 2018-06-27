@@ -9,17 +9,21 @@
     <style>
         body { text-align: center; color: #555; }
         button {
-            background: #666;
+            background: none;
             border: none;
             padding: .5em .8em;
             cursor: pointer;
-            font-family: arial;
-            color: #eee;
-            min-width: 85px;
+            font-family: 'Courier New', Courier, monospace;
+            border-bottom: 3px solid transparent;
         }
-        .controls {
-            margin-top: 5px;
-        }
+        button:active { border-top: 3px solid transparent; border-bottom: none; }
+        button.primary { background: #666; color: #eee; border-bottom-color: #333; }
+        .controls { margin-top: 5px; display: flex; }
+        .controls-h { display: flex; flex-direction: row; }
+        .controls-v { flex-direction: column; }
+        .controls-h button { flex-grow: 1; flex-basis: 1px; margin-right: 5px; }
+        .controls-h button:last-child { margin-right: 0; }
+        .controls-v button + button { margin-top: 5px; }
         .timer {
             width: 180px;
             margin-left: auto;
@@ -28,14 +32,25 @@
         .timer-time {
             font-size: 5em;
             font-family: monospace;
-            color: #333;
+            color: #999;
+            text-shadow: 0 2px #666;
         }
         .timer-controls-pause { display: none; }
         .playing .timer-controls-start { display: none; }
         .playing .timer-controls-pause { display: initial; }
         .task { text-align: center; margin-top: 2em; }
         .task-name-set { padding: .8em 1.2em; border: 1px solid #ddd; }
-        .bookmarklet { cursor: move; cursor: grab; cursor: -moz-grab; cursor: -webkit-grab; }
+        .bookmarklet { 
+            position: relative;
+            padding: .8em 1.2em;
+            background: #ddd;
+            color: #555;
+            text-decoration: none;
+            border-radius: .5em;
+            width: 100%;
+            cursor: move; cursor: grab; cursor: -moz-grab; cursor: -webkit-grab; 
+        }
+        .bookmarklet:before { content: '🔗'; position: absolute; left: 10px; top: 0; font-size: 30px; }
         .bookmarklet:active { cursor: grabbing; cursor: -moz-grabbing; cursor: -webkit-grabbing; }
     </style>
 </head>
@@ -44,18 +59,19 @@
         <div class="timer">
             <audio class="timer-audio"></audio>
             <div class="timer-time">25:00</div>
-            <div class="timer-controls controls">
-                <button class="timer-controls-start">Start</button>
-                <button class="timer-controls-pause">Pause</button>
+            <div class="timer-controls controls controls-h">
+                <button class="timer-controls-start primary">Start</button>
+                <button class="timer-controls-pause primary">Pause</button>
                 <button class="timer-controls-reset">Reset</button>
             </div>
-        </div>
-        <div class="special-controls controls">
-            <button class="controls-pomodoro">Pomodoro</button>
-            <button class="controls-break">Break</button>
-        </div>
-        <div class="controls">
-            <a class="bookmarklet" href="javascript:void(0)" title="Drag me to the bookmarks bar">Pomodorer</a>
+            <div class="special-controls controls controls-v">
+                <button class="controls-pomodoro" data-phase="Pomodoro">Pomodoro</button>
+                <button class="controls-break" data-phase="Break">Break</button>
+                <button class="controls-longbreak" data-phase="Long break">Long Break</button>
+            </div>
+            <div class="controls">
+                <a class="bookmarklet" href="javascript:void(0)" title="Drag me to the bookmarks bar">Pomodorer</a>
+            </div>
         </div>
         <div class="task">
             <span class="task-name"></span>
@@ -65,6 +81,9 @@
     <script id="bookmarklet-script" type="text/bookmarklet">
         javascript:(function() {
             var title;
+            console.log(typeof setPhase);
+            if (typeof setPhase === 'function')
+                return setPhase('Pomodoro').start();
             var gitlabSidebar = document.querySelector('.issue-boards-sidebar .issuable-header-text');
             if (gitlabSidebar) {
                 title = gitlabSidebar.querySelector('span').innerText.trim() + ' ' + gitlabSidebar.querySelector('strong').innerText.trim();
@@ -82,6 +101,12 @@
 
         var audio = document.querySelector('.timer-audio')
         var timer = Timer()
+        var nextPhases = ['Pomodoro', 'Break', 'Pomodoro', 'Break', 'Pomodoro', 'Long break']
+        var durations = {
+            'Pomodoro': 25,
+            'Break': 5,
+            'Long break': 15
+        }
         var currentPhase
 
         var POMODORO_MS = 25 * 60 * 1000
@@ -95,19 +120,22 @@
         var pomodoroBtn = document.querySelector('.controls-pomodoro')
         var breakBtn = document.querySelector('.controls-break')
         var taskNameSpan = document.querySelector('.task-name')
+        var phaseButtons = document.querySelectorAll('[data-phase]')
 
         timerStartBtn.onclick = function() { timer.start() }
         timerPauseBtn.onclick = function() { timer.pause() }
         timerResetBtn.onclick = function() { timer.reset() }
-        pomodoroBtn.onclick = function() { setPhase('Pomodoro', 25); timer.start() }
-        breakBtn.onclick = function() { setPhase('Break', 5); timer.start() }
+        Array.prototype.forEach.call(phaseButtons, function (btn) {
+            var phase = btn.getAttribute('data-phase')
+            btn.onclick = function () { setPhase(phase); timer.start() }
+        })
         
         timer.onstart = function() { refreshTitle(); timerContainer.classList.add('playing') }
         timer.onpause = function() { refreshTitle(); timerContainer.classList.remove('playing') }
         timer.onupdate = function(formattedTime) { refreshTitle(); timerTimeDiv.innerHTML = formattedTime }
-        timer.oncomplete = function() { audio.src = 'ding.wav'; audio.play(); notify(currentPhase + ' ended') }
+        timer.oncomplete = function() { audio.src = 'ding.wav'; audio.play(); notify(currentPhase + ' ended'); changePhase() }
 
-        setPhase('Pomodoro', 25)
+        changePhase()
         askNotificationPermission()
         var params = getParams(location.search.substr(1))
         setTaskTitle(params.title)
@@ -139,9 +167,34 @@
             ].join('')
         }
 
-        function setPhase(phase, minutes) {
+        function changePhase() {
+            setPhase(nextPhases[0])
+        }
+
+        function setPhase(phase) {
+            // cycle phases
+            var nextPhase
+            do {
+                nextPhase = nextPhases.shift()
+                nextPhases.push(nextPhase)
+            } while (nextPhase !== phase)
+
+            // set timer
             currentPhase = phase
+            var minutes = durations[phase]
             timer.totalMs(minutes * 60 * 1000)
+            
+            // highlight phase button
+            for (var i = 0; i < phaseButtons.length; i++) {
+                var phaseControl = phaseButtons[i]
+                var dataPhase = phaseControl.getAttribute('data-phase')
+                if (dataPhase === phase)
+                    phaseControl.classList.add('primary')
+                else
+                    phaseControl.classList.remove('primary')
+            }
+
+            return timer
         }
 
         function formatMs(ms) {
