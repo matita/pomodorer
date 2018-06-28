@@ -139,6 +139,7 @@
         askNotificationPermission()
         var params = getParams(location.search.substr(1))
         setTaskTitle(params.title)
+        renderCompletedPomodoros()
 
 
         function onTimerComplete() {
