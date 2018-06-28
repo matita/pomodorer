@@ -76,6 +76,7 @@
         <div class="task">
             <span class="task-name"></span>
         </div>
+        <div class="completed-pomodoros"></div>
     </div>
 
     <script id="bookmarklet-script" type="text/bookmarklet">
@@ -108,9 +109,7 @@
             'Long break': 15
         }
         var currentPhase
-
-        var POMODORO_MS = 25 * 60 * 1000
-        var BREAK_MS = 5 * 60 * 1000
+        var completedPomodoros = JSON.parse(localStorage['pomodorer_completed'] || '[]')
 
         var timerContainer = document.querySelector('.timer')
         var timerTimeDiv = document.querySelector('.timer-time')
@@ -121,6 +120,7 @@
         var breakBtn = document.querySelector('.controls-break')
         var taskNameSpan = document.querySelector('.task-name')
         var phaseButtons = document.querySelectorAll('[data-phase]')
+        var completedPomodorosDiv = document.querySelector('.completed-pomodoros')
 
         timerStartBtn.onclick = function() { timer.start() }
         timerPauseBtn.onclick = function() { timer.pause() }
@@ -133,13 +133,54 @@
         timer.onstart = function() { refreshTitle(); timerContainer.classList.add('playing') }
         timer.onpause = function() { refreshTitle(); timerContainer.classList.remove('playing') }
         timer.onupdate = function(formattedTime) { refreshTitle(); timerTimeDiv.innerHTML = formattedTime }
-        timer.oncomplete = function() { audio.src = 'ding.wav'; audio.play(); notify(currentPhase + ' ended'); changePhase() }
+        timer.oncomplete = onTimerComplete
 
         changePhase()
         askNotificationPermission()
         var params = getParams(location.search.substr(1))
         setTaskTitle(params.title)
 
+
+        function onTimerComplete() {
+            audio.src = 'ding.wav'; 
+            audio.play(); 
+            notify(currentPhase + ' ended');
+            if (currentPhase === 'Pomodoro')
+                addCompletedPomodoro()
+            changePhase()
+        }
+
+        function addCompletedPomodoro() {
+            completedPomodoros.push({
+                date: Date.now(),
+                phase: currentPhase,
+                duration: durations[currentPhase]
+            })
+            localStorage['pomodorer_completed'] = JSON.stringify(completedPomodoros)
+            renderCompletedPomodoros()
+        }
+
+        function groupByDate(completedPomodoros) {
+            return completedPomodoros
+                .sort(function(p1, p2) { return p2.date - p1.date })
+                .reduce(function (ps, p) {
+                    var formattedDate = formatDate(p.date)
+                    var ar = ps[formattedDate] || []
+                    ar.push(p)
+                    ps[formattedDate] = ar
+                    return ps
+                }, {})
+        }
+
+        function renderCompletedPomodoros() {
+            var dates = groupByDate(completedPomodoros)
+            var html = Object.keys(dates)
+                .map(function (d) {
+                    var pomodoros = dates[d]
+                    return ['<dt>', d, '</dt><dd>', pomodoros.length, ' pomodoros</dd>'].join('')
+                })
+            completedPomodorosDiv.innerHTML = '<dl>' + html.join('') + '</dl>'
+        }
 
         function setTaskTitle(title) {
             if (title) {
@@ -199,9 +240,18 @@
 
         function formatMs(ms) {
             var totalSec = Math.ceil(ms / 1000)
-            var s = ('0' + (totalSec % 60)).substr(-2)
-            var m = ('0' + (Math.floor(totalSec / 60))).substr(-2)
+            var s = pad(totalSec % 60)
+            var m = pad(Math.floor(totalSec / 60))
             return [m, s].join(':')
+        }
+
+        function pad(n) {
+            return ('0' + n).substr(-2)
+        }
+
+        function formatDate(ms) {
+            var d = new Date(ms)
+            return [d.getFullYear(), pad(d.getMonth()), pad(d.getDate())].join('/')
         }
 
         function Timer () {
